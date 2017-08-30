@@ -31,17 +31,17 @@ async function run() {
         // Setup handlers for
         
         // request about to be sent.
-        Network.requestWillBeSent((params) => {
+        /* Network.requestWillBeSent((params) => {
             console.log("-----Begin Request-----");
             console.log("URL: " + params.request.url);
             console.log("-----End Request-----");
-        });
+        }); */
 
         // Scripts parsed.
-        Debugger.scriptParsed((params) => {
+        Debugger.scriptParsed(async (params) => {
             console.log("-----Begin Parsed Script-----");
             console.log("Script ID: " + params.scriptId);
-            if (params.hasSourceURL) {
+            if (params.url) {
                 console.log("URL: " + params.url);
             }
             console.log("Start Line: " + params.startLine);
@@ -51,21 +51,18 @@ async function run() {
             console.log("Hash: " + params.hash); // For sanity check later on
 
             // Fetch the source of the script from the debugger.
-            console.log("-----Begin Script Source-----");
-
             // Retrieve the script source as a promise.
-            let source = Debugger.getScriptSource({scriptId: params.scriptId});
-            source.then(function(result) {
-                console.log(result);
-            });
+            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+            console.log("-----Begin Script Source-----");
+            console.log(source.scriptSource);
             console.log("-----End Script Source-----");
-
+            
             console.log("-----End Parsed Script-----");
         });
 
         // Scripts failed to parse.
-        Debugger.scriptFailedToParse((params) => {
-            console.log("-----Begin Parsed Script-----");
+        Debugger.scriptFailedToParse(async (params) => {
+            console.log("-----Begin Failed Script-----");
             console.log("Script ID: " + params.scriptId);
             if (params.hasSourceURL) {
                 console.log("URL: " + params.url);
@@ -77,16 +74,13 @@ async function run() {
             console.log("Hash: " + params.hash); // For sanity check later on
 
             // Fetch the source of the script from the debugger.
-            console.log("-----Begin Script Source-----");
-
             // Retrieve the script source as a promise.
-            let source = Debugger.getScriptSource({scriptId: params.scriptId});
-            source.then(function(result) {
-                console.log(result);
-            });
-            console.log("-----End Script Source-----");
-
-            console.log("-----End Parsed Script-----");
+            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+            console.log("-----Begin Failed Source-----");
+            console.log(source.scriptSource);
+            console.log("-----End Failed Source-----");
+        
+            console.log("-----End Failed Script-----");
         });
 
         // Enable events, then start.
