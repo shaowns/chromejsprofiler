@@ -1,9 +1,29 @@
 const CDP = require('chrome-remote-interface');
+const chromeLauncher = require('chrome-launcher');
+
+/**
+ * Launches a debugging instance of Chrome.
+ * @param {boolean=} headless True (default) launches Chrome in headless mode.
+ *     False launches a full version of Chrome.
+ * @return {Promise<ChromeLauncher>}
+ */
+function launchChrome(headless=true) {
+  return chromeLauncher.launch({
+    port: 9222,
+    chromeFlags: [
+      '--disable-gpu',
+      headless ? '--headless' : ''
+    ]
+  });
+}
 
 async function run() {
     try {
+        // Wait for chrome to launch
+        const chrome = await launchChrome();
+
         // Connect to endpoint
-        var client = await CDP();
+        var client = await CDP({port: chrome.port});
 
         // Extract required domains
         const {Network, Page, Debugger} = client;
