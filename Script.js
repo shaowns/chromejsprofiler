@@ -4,9 +4,10 @@ class Script {
      * Creates an instance of Script.
      * @param {any} DebuggerScript packed contents of the parameters captured during the
      * triggered event of scriptParsed and scriptFailedToParse.
+     * @param {boolean} isFailedScript determines if this is failed to parse script.
      * @memberof Script
      */
-    constructor(DebuggerScript) {
+    constructor(DebuggerScript, isFailedScript) {
         this.scriptId = DebuggerScript.scriptId;
         this.url = DebuggerScript.url;
         this.startLine = DebuggerScript.startLine;
@@ -14,6 +15,7 @@ class Script {
         this.endLine = DebuggerScript.endLine;
         this.endColumn = DebuggerScript.endColumn;
         this.hash = DebuggerScript.hash;
+        this.failedToParse = isFailedScript;
 
         // This is the script source, we will retrieve this from the debugger.
         // Initialize to an empty string for now.
@@ -125,5 +127,39 @@ class Script {
     setSource(source) {
         this._source = source;
         this._hasSource = true;
+    }
+
+    /**
+     * Check if this is a failed to parse type script.
+     * 
+     * @returns boolean
+     * @memberof Script
+     */
+    isFailedScript() {
+        return this._failedToParse;
+    }
+
+    /**
+     * Dumps the script class contents on the console for debugging purposes.
+     * 
+     * @memberof Script
+     */
+    printToConsole() {
+        console.log("-----Begin Script-----");
+        console.log("Script ID: " + this._scriptId);
+        if (this._url) {
+            console.log("URL: " + this._url);
+        }
+        console.log("Start Line: " + this._startLine);
+        console.log("Start Column: " + this._startColumn);
+        console.log("End Line: " + this._endLine);
+        console.log("End Column: " + this._endColumn);
+        console.log("Hash: " + this._hash);
+
+        console.log("-----Begin Script Source-----");
+        console.log(this.getSource());
+        console.log("-----End Script Source-----");
+        
+        console.log("-----End Parsed Script-----");
     }
 }
