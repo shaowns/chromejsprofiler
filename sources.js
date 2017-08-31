@@ -20,13 +20,13 @@ function launchChrome(headless=true) {
 async function run() {
     try {
         // Wait for chrome to launch
-        const chrome = await launchChrome();
+        var chrome = await launchChrome();
 
         // Connect to endpoint
         var client = await CDP({port: chrome.port});
 
         // Extract required domains
-        const {Network, Page, Debugger} = client;
+        const {Network, Page, Debugger, Runtimen} = client;
 
         // Setup handlers for
         
@@ -87,11 +87,15 @@ async function run() {
         await Promise.all([Network.enable(), Page.enable(), Debugger.enable()]);
         await Page.navigate({url: 'http://google.com'});
         await Page.loadEventFired();
+        await Runtime.evaluate({
+            expression: 'document.documentElement.outerHTML'
+        });      
     } catch (error) {
         console.error(error)
     } finally {
         if (client) {
             await client.close();
+            await chrome.kill();
         }
     }
 }
