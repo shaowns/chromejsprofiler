@@ -1,7 +1,7 @@
 {
   "name": "chromejsprofiler",
   "version": "1.0.0",
-  "description": "",
+  "description": "Scrapper for JS on the web",
   "main": "sources.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,6 +18,9 @@
   },
   "homepage": "https://github.com/shaowns/chromejsprofiler#readme",
   "dependencies": {
-    "chrome-remote-interface": "^0.24.4"
+    "chrome-launcher": "^0.6.0",
+    "chrome-remote-interface": "^0.24.4",
+    "jshint": "^2.9.5",
+    "jslint": "^0.11.0"
   }
 }
