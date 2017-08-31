@@ -28,7 +28,7 @@ function launchChrome(headless=true) {
 var run = async function (URL) {
     try {
         // Wait for chrome to launch
-        var chrome = await launchChrome();
+        var chrome = await launchChrome(false);
 
         // Connect to endpoint
         var client = await CDP({port: chrome.port});
@@ -83,6 +83,11 @@ var run = async function (URL) {
         // Dump the script dictionary to console.
         for (var key in scripts) {
             scripts[key].printToConsole();
+        }
+
+        // Dump the requests to console.
+        for (let r of requests) {
+            console.log(r);
         }
 
     } catch (error) {
