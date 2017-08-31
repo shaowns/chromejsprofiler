@@ -30,7 +30,7 @@ class Script {
      * @memberof Script
      */
     getScriptId() {
-        return this._scriptId;
+        return this.scriptId;
     }
 
     /**
@@ -40,7 +40,7 @@ class Script {
      * @memberof Script
      */
     getUrl() {
-        return this._url;
+        return this.url;
     }
 
     /**
@@ -50,7 +50,7 @@ class Script {
      * @memberof Script
      */
     getStartLine() {
-        return this._startLine;
+        return this.startLine;
     }
 
     /**
@@ -60,7 +60,7 @@ class Script {
      * @memberof Script
      */
     getStartColumn() {
-        return this._startColumn;
+        return this.startColumn;
     }
 
     /**
@@ -70,7 +70,7 @@ class Script {
      * @memberof Script
      */
     getEndLine() {
-        return this._endLine;
+        return this.endLine;
     }
 
     /**
@@ -80,7 +80,7 @@ class Script {
      * @memberof Script
      */
     getEndColumn() {
-        return this._endColumn;
+        return this.endColumn;
     }
 
     /**
@@ -90,7 +90,7 @@ class Script {
      * @memberof Script
      */
     getHash() {
-        return this._hash;
+        return this.hash;
     }
 
     /**
@@ -100,8 +100,8 @@ class Script {
      * @memberof Script
      */
     getSource() {
-        if (this._hasSource) {
-            return this._source;
+        if (this.hasSource) {
+            return this.source;
         }
 
         // Should not have called.
@@ -114,8 +114,8 @@ class Script {
      * @returns boolean
      * @memberof Script
      */
-    hasSource() {
-        return this._hasSource;
+    canGetSource() {
+        return this.hasSource;
     }
 
     /**
@@ -125,8 +125,8 @@ class Script {
      * @memberof Script
      */
     setSource(source) {
-        this._source = source;
-        this._hasSource = true;
+        this.source = source;
+        this.hasSource = true;
     }
 
     /**
@@ -136,7 +136,7 @@ class Script {
      * @memberof Script
      */
     isFailedScript() {
-        return this._failedToParse;
+        return this.failedToParse;
     }
 
     /**
@@ -146,20 +146,25 @@ class Script {
      */
     printToConsole() {
         console.log("-----Begin Script-----");
-        console.log("Script ID: " + this._scriptId);
-        if (this._url) {
-            console.log("URL: " + this._url);
+        console.log("Script ID: " + this.scriptId);
+        if (this.url) {
+            console.log("URL: " + this.url);
         }
-        console.log("Start Line: " + this._startLine);
-        console.log("Start Column: " + this._startColumn);
-        console.log("End Line: " + this._endLine);
-        console.log("End Column: " + this._endColumn);
-        console.log("Hash: " + this._hash);
+        console.log("Start Line: " + this.startLine);
+        console.log("Start Column: " + this.startColumn);
+        console.log("End Line: " + this.endLine);
+        console.log("End Column: " + this.endColumn);
+        console.log("Hash: " + this.hash);
+        console.log("Parse failed: " + this.failedToParse);
 
-        console.log("-----Begin Script Source-----");
-        console.log(this.getSource());
-        console.log("-----End Script Source-----");
+        if (this.canGetSource()) {
+            console.log("-----Begin Script Source-----");
+            console.log(this.getSource());
+            console.log("-----End Script Source-----");
+        }
         
-        console.log("-----End Parsed Script-----");
+        console.log("-----End Script-----");
     }
 }
+
+module.exports = Script;
