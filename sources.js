@@ -1,10 +1,13 @@
 const CDP = require('chrome-remote-interface');
 const chromeLauncher = require('chrome-launcher');
 
+// Imported class.
+var Script = require('./Script.js');
+
 /**
  * Launches a debugging instance of Chrome.
  * @param {boolean=} headless True (default) launches Chrome in headless mode.
- *     False launches a full version of Chrome.
+ * False launches a full version of Chrome.
  * @return {Promise<ChromeLauncher>}
  */
 function launchChrome(headless=true) {
@@ -17,7 +20,12 @@ function launchChrome(headless=true) {
   });
 }
 
-async function run() {
+/**
+ * Main function that launches an instance of chrome
+ * and retrieves the information from it through the
+ * devtools protocol.
+ */
+var run = async function (URL) {
     try {
         // Wait for chrome to launch
         var chrome = await launchChrome();
@@ -26,70 +34,57 @@ async function run() {
         var client = await CDP({port: chrome.port});
 
         // Extract required domains
-        const {Network, Page, Debugger, Runtimen} = client;
+        const {Network, Page, Debugger, Runtime} = client;
+
+        // Container for storing the script objects.
+        var scripts = {};
+
+        // Container for request URLs.
+        var requests = [];
 
         // Setup handlers for
         
         // request about to be sent.
-        /* Network.requestWillBeSent((params) => {
-            console.log("-----Begin Request-----");
-            console.log("URL: " + params.request.url);
-            console.log("-----End Request-----");
-        }); */
+        Network.requestWillBeSent((params) => {
+            requests.push(params.request.url);
+        });
 
         // Scripts parsed.
         Debugger.scriptParsed(async (params) => {
-            console.log("-----Begin Parsed Script-----");
-            console.log("Script ID: " + params.scriptId);
-            if (params.url) {
-                console.log("URL: " + params.url);
-            }
-            console.log("Start Line: " + params.startLine);
-            console.log("Start Column: " + params.startColumn);
-            console.log("End Line: " + params.endLine);
-            console.log("End Column: " + params.endColumn);
-            console.log("Hash: " + params.hash); // For sanity check later on
+            var s = new Script(params, false);
 
             // Fetch the source of the script from the debugger.
             // Retrieve the script source as a promise.
-            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
-            console.log("-----Begin Script Source-----");
-            console.log(source.scriptSource);
-            console.log("-----End Script Source-----");
-            
-            console.log("-----End Parsed Script-----");
+            let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
+            s.setSource(source.scriptSource);
+            scripts[s.getScriptId()] = s;
         });
 
         // Scripts failed to parse.
         Debugger.scriptFailedToParse(async (params) => {
-            console.log("-----Begin Failed Script-----");
-            console.log("Script ID: " + params.scriptId);
-            if (params.hasSourceURL) {
-                console.log("URL: " + params.url);
-            }
-            console.log("Start Line: " + params.startLine);
-            console.log("Start Column: " + params.startColumn);
-            console.log("End Line: " + params.endLine);
-            console.log("End Column: " + params.endColumn);
-            console.log("Hash: " + params.hash); // For sanity check later on
+            var s = new Script(params, true);
 
             // Fetch the source of the script from the debugger.
             // Retrieve the script source as a promise.
-            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
-            console.log("-----Begin Failed Source-----");
-            console.log(source.scriptSource);
-            console.log("-----End Failed Source-----");
-        
-            console.log("-----End Failed Script-----");
+            let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
+            s.setSource(source.scriptSource);
+            scripts[s.getScriptId()] = s;
         });
 
         // Enable events, then start.
         await Promise.all([Network.enable(), Page.enable(), Debugger.enable()]);
-        await Page.navigate({url: 'http://google.com'});
+        await Network.setCacheDisabled({cacheDisabled: true});
+        await Page.navigate({url: URL});
         await Page.loadEventFired();
-        await Runtime.evaluate({
+        const pageContent = await Runtime.evaluate({
             expression: 'document.documentElement.outerHTML'
-        });      
+        }); 
+        
+        // Dump the script dictionary to console.
+        for (var key in scripts) {
+            scripts[key].printToConsole();
+        }
+
     } catch (error) {
         console.error(error)
     } finally {
@@ -100,4 +95,4 @@ async function run() {
     }
 }
 
-run();
+run('https://google.com');

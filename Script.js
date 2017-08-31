@@ -121,11 +121,11 @@ class Script {
     /**
      * Sets the source of this script.
      * 
-     * @param {String} source 
+     * @param {String} s 
      * @memberof Script
      */
-    setSource(source) {
-        this.source = source;
+    setSource(s) {
+        this.source = s;
         this.hasSource = true;
     }
 
