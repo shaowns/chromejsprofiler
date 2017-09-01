@@ -6,6 +6,7 @@ var Script = require('./Script.js');
 
 /**
  * Launches a debugging instance of Chrome.
+ * 
  * @param {boolean=} headless True (default) launches Chrome in headless mode.
  * False launches a full version of Chrome.
  * @return {Promise<ChromeLauncher>}
@@ -21,9 +22,30 @@ function launchChrome(headless=true) {
 }
 
 /**
+ * Process the scrapped contents from the URL.
+ * 
+ * @param {any} URL 
+ * @param {any} scripts 
+ * @param {any} requests 
+ */
+function processUrlContents(URL, scripts, requests) {
+    // Dump the script dictionary to console.
+    for (var key in scripts) {
+        scripts[key].printToConsole();
+    }
+
+    // Dump the requests to console.
+    for (let r of requests) {
+        console.log(r);
+    }
+}
+
+/**
  * Main function that launches an instance of chrome
  * and retrieves the information from it through the
  * devtools protocol.
+ * 
+ * @param {String} URL 
  */
 var run = async function (URL) {
     try {
@@ -80,22 +102,22 @@ var run = async function (URL) {
             expression: 'document.documentElement.outerHTML'
         }); 
         
-        // Dump the script dictionary to console.
-        for (var key in scripts) {
-            scripts[key].printToConsole();
-        }
-
-        // Dump the requests to console.
-        for (let r of requests) {
-            console.log(r);
-        }
+        /*
+        * Wait for a certain period of time before processing the scripts and the urls.
+        * See https://github.com/shaowns/chromejsscrapper/issues/1
+        */
+        setTimeout(function() {
+            processUrlContents(URL, scripts, requests);
+        }, 5000);
 
     } catch (error) {
         console.error(error)
     } finally {
-        if (client) {
-            await client.close();
-            await chrome.kill();
+        if (client && chrome) {
+            setTimeout(async function() {
+                await client.close();
+                await chrome.kill();    
+            }, 5000);            
         }
     }
 }
