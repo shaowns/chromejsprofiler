@@ -20,6 +20,7 @@
   "dependencies": {
     "chrome-launcher": "^0.6.0",
     "chrome-remote-interface": "^0.24.4",
+    "delay": "^2.0.0",
     "jshint": "^2.9.5",
     "jshint-esnext": "^2.7.0-3",
     "jslint": "^0.11.0",
