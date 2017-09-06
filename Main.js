@@ -33,7 +33,7 @@ function launchChrome(headless=true) {
 function processUrlContents(url, scripts, requests, finalHtml) {
     // Dump the script dictionary to console.
     for (var key in scripts) {
-        scripts[key].printToConsole();
+        console.log(JSON.stringify(scripts[key]));
     }
 
     // Dump the requests to console.
@@ -138,7 +138,7 @@ async function runAndProcessScrappedContents(url, Network, Debugger, Page, Runti
  */
 async function init() {
     // Wait for chrome to launch
-    var chrome = await launchChrome(false);
+    var chrome = await launchChrome(true);
     
     // Connect to endpoint
     var client = await CDP({port: chrome.port});
