@@ -25,6 +25,8 @@
     "jshint-esnext": "^2.7.0-3",
     "jslint": "^0.11.0",
     "minimatch": "^3.0.4",
-    "mongodb": "^2.2.31"
+    "mongodb": "^2.2.31",
+    "mongoose": "^4.11.11",
+    "os": "^0.1.1"
   }
 }
