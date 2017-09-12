@@ -15,12 +15,8 @@ class Script {
         this.endLine = DebuggerScript.endLine;
         this.endColumn = DebuggerScript.endColumn;
         this.hash = DebuggerScript.hash;
-        this.failedToParse = isFailedScript;
-
-        // This is the script source, we will retrieve this from the debugger.
-        // Initialize to an empty string for now.
-        this.source = "";
-        this.hasSource = false;
+        this.failedToParse = isFailedScript;         
+        this.source = "";        
     }
 
     /**
@@ -100,22 +96,7 @@ class Script {
      * @memberof Script
      */
     getSource() {
-        if (this.hasSource) {
-            return this.source;
-        }
-
-        // Should not have called.
-        throw new Error("Script source is not yet available.");
-    }
-
-    /**
-     * Check if the script has a source.
-     * 
-     * @returns boolean
-     * @memberof Script
-     */
-    canGetSource() {
-        return this.hasSource;
+        return this.source;        
     }
 
     /**
@@ -124,9 +105,8 @@ class Script {
      * @param {String} s 
      * @memberof Script
      */
-    setSource(s) {
-        this.source = s;
-        this.hasSource = true;
+    setSource(source) {
+        this.source = source;
     }
 
     /**
@@ -157,12 +137,10 @@ class Script {
         console.log("Hash: " + this.hash);
         console.log("Parse failed: " + this.failedToParse);
 
-        if (this.canGetSource()) {
-            console.log("-----Begin Script Source-----");
-            console.log(this.getSource());
-            console.log("-----End Script Source-----");
-        }
-        
+        console.log("-----Begin Script Source-----");
+        console.log(this.getSource());
+        console.log("-----End Script Source-----");
+    
         console.log("-----End Script-----");
     }
 }
