@@ -1,11 +1,14 @@
 // Bring Mongoose into the app
 var mongoose = require( 'mongoose' );
 
-// Build the connection string
-var dbURI = 'mongodb://moleadmin:pieinthesky@localhost:27017/mole';
+// Fetch the conneciton string from property module
+var dbURI = require('./property').dbURI;
 
 // Create the database connection
-mongoose.connect(dbURI);
+mongoose.connect(dbURI, {
+    useMongoClient: true,
+    /* other options if needed here */
+  });
 
 // CONNECTION EVENTS
 // When successfully connected
@@ -30,3 +33,5 @@ process.on('SIGINT', function() {
     process.exit(0);
   });
 });
+
+module.exports = mongoose;

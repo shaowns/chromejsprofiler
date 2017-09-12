@@ -2,8 +2,10 @@ const CDP = require('chrome-remote-interface');
 const chromeLauncher = require('chrome-launcher');
 const delay = require('delay');
 
-// Imported class.
-var Script = require('./Script.js');
+// Mongoose models
+var DB = require('./DB');
+var Script = require("./Script").model;
+var ScrappedContent = require('./ScrappedContent');
 
 /**
  * Launches a debugging instance of Chrome.
@@ -25,19 +27,16 @@ function launchChrome(headless=true) {
 /**
  * Process the scrapped materials from the URL.
  * 
- * @param {String} url 
- * @param {Dictionary} scripts 
- * @param {Array} requests 
- * @param {String} finalHtml
- */
-function processUrlContents(url, scripts, requests, finalHtml) {
+ * @param {ScrappedContent} content 
+  */
+function processUrlContents(content) {
     // Dump the script dictionary to console.
-    for (var key in scripts) {
-        console.log(JSON.stringify(scripts[key]));
+    for (let s of content.scripts) {
+        s.dumpToConsole();
     }
 
     // Dump the requests to console.
-    for (let r of requests) {
+    for (let r of content.requests) {
         console.log(r);
     }
 
@@ -48,14 +47,20 @@ function processUrlContents(url, scripts, requests, finalHtml) {
  * Takes a string and scrapes off the sources, requests, and the
  * final page content from the given url.
  * 
- * @param {String} url 
+ * @param {String} url
+ * @param {Number} rank
  * @param {any} Network 
  * @param {any} Debugger 
  * @param {any} Page 
  * @param {any} Runtime 
  * @returns Object packed with the source scripts, requests, and the final page content.
  */
-async function scrape(url, Network, Debugger, Page, Runtime) {
+async function scrape(url, rank, Network, Debugger, Page, Runtime) {
+    // The scrapped content model object.
+    var content = new ScrappedContent();
+    content.url = url;
+    content.rank = rank;
+
     // Container for storing the script objects.
     var scripts = [];
     
@@ -70,24 +75,40 @@ async function scrape(url, Network, Debugger, Page, Runtime) {
 
     // Scripts parsed.
     Debugger.scriptParsed(async (params) => {
-        var s = new Script(params, false);
+        var script = new Script();
+        script.scriptId = params.scriptId;
+        script.url = params.url;
+        script.startLine = params.startLine;
+        script.startColumn = params.startColumn;
+        script.endLine = params.endLine;
+        script.endColumn = params.endColumn;
+        script.hash = params.hash;
+        script.failedToParse = false;
 
         // Fetch the source of the script from the debugger.
         // Retrieve the script source as a promise.
-        let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
-        s.setSource(source.scriptSource);
-        scripts.push(s);
+        let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+        script.source = source.scriptSource;
+        scripts.push(script);
     });
 
     // Scripts failed to parse.
     Debugger.scriptFailedToParse(async (params) => {
-        var s = new Script(params, true);
+        var script = new Script();
+        script.scriptId = params.scriptId;
+        script.url = params.url;
+        script.startLine = params.startLine;
+        script.startColumn = params.startColumn;
+        script.endLine = params.endLine;
+        script.endColumn = params.endColumn;
+        script.hash = params.hash;
+        script.failedToParse = true;
 
         // Fetch the source of the script from the debugger.
         // Retrieve the script source as a promise.
-        let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
-        s.setSource(source.scriptSource);
-        scripts.push(s);
+        let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+        script.source = source.scriptSource;
+        scripts.push(script);
     });
 
     // Enable events, then start.
@@ -106,28 +127,28 @@ async function scrape(url, Network, Debugger, Page, Runtime) {
     */
     await delay(5000);
 
-    return {requests: requests, scripts: scripts, finalHtml: finalPageContent.result.value};
+    // Save the scripts, requests, and the final html into the content object.
+    content.scripts = scripts;
+    content.requests = requests;
+    content.finalHtml = finalPageContent.result.value;
+
+    return content;
 }
 
 /**
  * Initiate the scrapping of sources and process the retrieved contents.
  * 
- * @param {String} url 
+ * @param {String} url
+ * @param {Number} rank 
  * @param {any} Network 
  * @param {any} Debugger 
  * @param {any} Page 
  * @param {any} Runtime 
  */
-async function runAndProcessScrappedContents(url, Network, Debugger, Page, Runtime) {
+async function runAndProcessScrappedContents(url, rank, Network, Debugger, Page, Runtime) {
     // Get the scraped contents from the url given.
-    let contents = await scrape(url, Network, Debugger, Page, Runtime);
-    
-    // Process the contents we just scraped.
-    let scripts = contents.scripts;
-    let requests = contents.requests;
-    let finalHtml = contents.finalHtml;
-    
-    processUrlContents(url, scripts, requests, finalHtml);
+    let content = await scrape(url, rank, Network, Debugger, Page, Runtime);
+    processUrlContents(content);
 }
 
 /**
@@ -164,7 +185,7 @@ var run = async function () {
         const {Network, Page, Debugger, Runtime} = client;
 
         // TODO: Do the following for multithread or multi process way.
-        await runAndProcessScrappedContents('http://google.com', Network, Debugger, Page, Runtime);
+        await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
     } catch (error) {
         console.error(error)
     } finally {
