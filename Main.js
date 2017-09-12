@@ -57,7 +57,7 @@ function processUrlContents(url, scripts, requests, finalHtml) {
  */
 async function scrape(url, Network, Debugger, Page, Runtime) {
     // Container for storing the script objects.
-    var scripts = {};
+    var scripts = [];
     
     // Container for request URLs.
     var requests = [];
@@ -76,7 +76,7 @@ async function scrape(url, Network, Debugger, Page, Runtime) {
         // Retrieve the script source as a promise.
         let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
         s.setSource(source.scriptSource);
-        scripts[s.getScriptId()] = s;
+        scripts.push(s);
     });
 
     // Scripts failed to parse.
@@ -87,7 +87,7 @@ async function scrape(url, Network, Debugger, Page, Runtime) {
         // Retrieve the script source as a promise.
         let source = await Debugger.getScriptSource({scriptId: s.getScriptId()});
         s.setSource(source.scriptSource);
-        scripts[s.getScriptId()] = s;
+        scripts.push(s);
     });
 
     // Enable events, then start.
