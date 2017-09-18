@@ -3,6 +3,7 @@ var mongoose = require('mongoose');
 
 // Needed for subdocument structure
 var scriptSchema = require('./Script').schema;
+var requestSchema = require('./Request').schema;
 
 // The schema definition
 var scrappedContentSchema = new mongoose.Schema({
@@ -10,7 +11,7 @@ var scrappedContentSchema = new mongoose.Schema({
     rank: Number,
     createdOn: { type: Date, default: Date.now },
     scripts: [scriptSchema],
-    requests: [String],
+    requests: [requestSchema],
     finalHtml: String
 });
 

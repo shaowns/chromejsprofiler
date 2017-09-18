@@ -4,7 +4,8 @@ const delay = require('delay');
 
 // Mongoose models
 var DB = require('./DB');
-var Script = require("./Script").model;
+var Script = require('./Script').model;
+var Request = require('./Request').model;
 var ScrappedContent = require('./ScrappedContent');
 
 /**
@@ -30,14 +31,13 @@ function launchChrome(headless=true) {
  * @param {ScrappedContent} content 
   */
 function processUrlContents(content) {
-    // Dump the script dictionary to console.
     for (let s of content.scripts) {
         s.dumpToConsole();
     }
 
     // Dump the requests to console.
     for (let r of content.requests) {
-        console.log(r);
+        r.dumpToConsole();
     }
 
     //console.log(finalHtml);
@@ -64,13 +64,22 @@ async function scrape(url, rank, Network, Debugger, Page, Runtime) {
     // Container for storing the script objects.
     var scripts = [];
     
-    // Container for request URLs.
+    // Container for request objects.
     var requests = [];
+
+    // Variable for start time reference point.
+    var hrstart = null;
 
     // Setup handlers for: 
     // request about to be sent.
     Network.requestWillBeSent((params) => {
-        requests.push(params.request.url);
+        let hrend = process.hrtime(hrstart);
+        let elapsed = hrend[0] * 1000 + hrend[1]/1000000;
+
+        var request = new Request();
+        request.url = params.request.url;
+        request.timeFromPageLoad = elapsed;
+        requests.push(request);
     });
 
     // Scripts parsed.
@@ -114,8 +123,13 @@ async function scrape(url, rank, Network, Debugger, Page, Runtime) {
     // Enable events, then start.
     await Promise.all([Network.enable(), Page.enable(), Debugger.enable()]);
     await Network.setCacheDisabled({cacheDisabled: true});
+
+    // Timing start point and navigate to the url.
+    hrstart = process.hrtime();
     await Page.navigate({url: url});
     await Page.loadEventFired();
+
+    // Get the final html.
     const finalPageContent = await Runtime.evaluate({
         expression: 'document.documentElement.outerHTML'
     });

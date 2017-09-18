@@ -39,4 +39,4 @@ var Script = mongoose.model('Script', scriptSchema);
 module.exports = {
     schema: scriptSchema,
     model: Script
-}
+};
