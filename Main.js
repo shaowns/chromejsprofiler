@@ -1,6 +1,8 @@
 const CDP = require('chrome-remote-interface');
 const chromeLauncher = require('chrome-launcher');
 const delay = require('delay');
+var cluster = require('cluster');
+var nthline = require('nthline');
 
 // Mongoose models
 var DB = require('./DB');
@@ -185,9 +187,12 @@ async function init() {
  * Main function that launches an instance of chrome
  * and retrieves the information from it through the
  * devtools protocol.
- *  
+ * 
+ * @param {any} filePath 
+ * @param {any} startLine 
+ * @param {any} endLine 
  */
-var run = async function () {
+async function runScrapper(filePath, startLine, endLine) {
     try {        
         var agents = await init();
 
@@ -198,18 +203,56 @@ var run = async function () {
         // Extract required domains
         const {Network, Page, Debugger, Runtime} = client;
 
-        // TODO: Do the following for multithread or multi process way.
-        await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
+        for (var i = startLine; i <= endLine; i++) {
+            var line = await nthline(i, filePath);
+            await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
+        }        
+
     } catch (error) {
         console.error(error)
     } finally {
         if (client && chrome) {
-            
             await client.close();
             await chrome.kill();
-
         }
     }
 }
 
-run();
+function main() {
+    if(cluster.isMaster) {
+        var numWorkers = require('os').cpus().length;
+
+        console.log('Master cluster setting up ' + numWorkers + ' workers...');
+
+        // Setup the file access parameters.
+        const linesInFile = 1000000;    // Omnipotent knowledge, don't question it.
+        const sliceSize = Math.floor(linesInFile/numWorkers);
+
+        // Spin up the workers.
+        for(var i = 0; i < numWorkers; i++) {
+            var worker = cluster.fork();
+            
+            var sliceStart = i * sliceSize;
+            var sliceEnd = sliceStart + sliceSize >= linesInFile ? linesInFile - 1 : sliceStart + sliceSize - 1;
+
+            worker.send({
+                filePath: 'Alexa-top-1m.csv',
+                startLine: sliceStart,
+                endLine: sliceEnd
+            });
+        }
+
+        cluster.on('online', function(worker) {
+            console.log('Worker ' + worker.process.pid + ' is online');
+        });
+
+        cluster.on('exit', function(worker, code, signal) {
+            console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);        
+        });
+    } else {
+        process.on('message', async function(message) {        
+            await runScrapper(message.filePath, message.startLine, message.endLine);
+            process.exit(0);
+        });
+    }
+}
