@@ -19,7 +19,6 @@ var ScrappedContent = require('./ScrappedContent');
  */
 function launchChrome(headless=true) {
   return chromeLauncher.launch({
-    port: 9222,
     chromeFlags: [
       '--disable-gpu',
       headless ? '--headless' : ''
@@ -188,11 +187,10 @@ async function init() {
  * and retrieves the information from it through the
  * devtools protocol.
  * 
- * @param {any} filePath 
  * @param {any} startLine 
  * @param {any} endLine 
  */
-async function runScrapper(filePath, startLine, endLine) {
+async function runScrapper(startLine, endLine) {
     try {        
         var agents = await init();
 
@@ -203,13 +201,20 @@ async function runScrapper(filePath, startLine, endLine) {
         // Extract required domains
         const {Network, Page, Debugger, Runtime} = client;
 
+        // Get the Alexa dataset filepath from the properties.
+        var filePath = require('./property').urlDataset;
+
         for (var i = startLine; i <= endLine; i++) {
             var line = await nthline(i, filePath);
-            await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
+            var vals = line.split(",");
+            var rank = parseInt(vals[0]);
+            var url = vals[1];
+            console.log(rank + ' ' + url);
+            //await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
         }        
 
     } catch (error) {
-        console.error(error)
+        console.error("Oops! " + error);
     } finally {
         if (client && chrome) {
             await client.close();
@@ -225,18 +230,17 @@ function main() {
         console.log('Master cluster setting up ' + numWorkers + ' workers...');
 
         // Setup the file access parameters.
-        const linesInFile = 1000000;    // Omnipotent knowledge, don't question it.
-        const sliceSize = Math.floor(linesInFile/numWorkers);
+        const lineLimit = require('./property').urlLimit;
+        const sliceSize = Math.floor(lineLimit/numWorkers);
 
         // Spin up the workers.
         for(var i = 0; i < numWorkers; i++) {
             var worker = cluster.fork();
             
             var sliceStart = i * sliceSize;
-            var sliceEnd = sliceStart + sliceSize >= linesInFile ? linesInFile - 1 : sliceStart + sliceSize - 1;
+            var sliceEnd = i == numWorkers - 1 ? lineLimit - 1 : sliceStart + sliceSize - 1;
 
             worker.send({
-                filePath: 'Alexa-top-1m.csv',
                 startLine: sliceStart,
                 endLine: sliceEnd
             });
@@ -247,12 +251,16 @@ function main() {
         });
 
         cluster.on('exit', function(worker, code, signal) {
-            console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);        
+            console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
+            console.log(Object.keys(cluster.workers).length);
         });
     } else {
         process.on('message', async function(message) {        
-            await runScrapper(message.filePath, message.startLine, message.endLine);
+            await runScrapper(message.startLine, message.endLine);
             process.exit(0);
         });
     }
 }
+
+// Call the main function.
+main();
