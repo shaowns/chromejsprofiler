@@ -17,7 +17,7 @@ var ScrappedContent = require('./ScrappedContent');
  * False launches a full version of Chrome.
  * @return {Promise<ChromeLauncher>}
  */
-function launchChrome(headless=true) {
+async function launchChrome(headless=true) {
   return chromeLauncher.launch({
     chromeFlags: [
       '--disable-gpu',
@@ -191,13 +191,20 @@ async function init() {
  * @param {any} endLine 
  */
 async function runScrapper(startLine, endLine) {
-    try {        
-        var agents = await init();
+    var chrome = null;
+    var client = null;
 
+    try {
+        var agents = await init();
         // Expand into the required agents.
         var chrome = agents.chrome;
         var client = agents.client;
-
+    } catch (error) {
+        console.log('Error initializing chrome and CDP client : ' +  String(error));
+        return 1;
+    }
+    
+    try {
         // Extract required domains
         const {Network, Page, Debugger, Runtime} = client;
 
@@ -210,17 +217,21 @@ async function runScrapper(startLine, endLine) {
             var rank = parseInt(vals[0]);
             var url = vals[1];
             console.log(rank + ' ' + url);
-            //await runAndProcessScrappedContents('http://google.com', 1, Network, Debugger, Page, Runtime);
+            //await runAndProcessScrappedContents(url, rank, Network, Debugger, Page, Runtime);
         }        
 
     } catch (error) {
-        console.error("Oops! " + error);
+        console.error("Error loading pages and extracting " + String(error));
     } finally {
-        if (client && chrome) {
+        if (client) {
             await client.close();
+        }
+        if (chrome) {
             await chrome.kill();
         }
     }
+
+    return 0;
 }
 
 function main() {
@@ -244,19 +255,44 @@ function main() {
                 startLine: sliceStart,
                 endLine: sliceEnd
             });
+
+            worker.on('message', function(message) {
+                if (message.type == 'fail') {
+                    console.log('Worker ' + worker.process.pid + ' failed, forking a new worker with the same task');
+                    var newWorker = cluster.fork();
+                    newWorker.send({
+                        startLine: message.startLine,
+                        endLine: message.endLine
+                    });
+                }
+            });
         }
 
         cluster.on('online', function(worker) {
             console.log('Worker ' + worker.process.pid + ' is online');
         });
 
+        
+
         cluster.on('exit', function(worker, code, signal) {
             console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
-            console.log(Object.keys(cluster.workers).length);
+            // Check if there are no more workers, then gracefully exit the master to close mongoose connections.
+            if (Object.keys(cluster.workers).length == 0) {                
+                process.exit(0);
+            }
         });
     } else {
         process.on('message', async function(message) {        
-            await runScrapper(message.startLine, message.endLine);
+            var exitCode = await runScrapper(message.startLine, message.endLine);
+            // If there was an exit code then we would have to close this one and create a
+            // new worker with the same task as this one.
+            if (exitCode) {
+                process.send({
+                    type: 'fail',
+                    startLine: message.startLine,
+                    endLine: message.endLine
+                });
+            }
             process.exit(0);
         });
     }
