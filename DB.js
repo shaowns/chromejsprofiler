@@ -1,5 +1,6 @@
 // Bring Mongoose into the app
 var mongoose = require( 'mongoose' );
+mongoose.Promise = global.Promise;
 
 // Fetch the conneciton string from property module
 var dbURI = require('./property').dbURI;
@@ -7,6 +8,7 @@ var dbURI = require('./property').dbURI;
 // Create the database connection
 mongoose.connect(dbURI, {
     useMongoClient: true,
+    poolSize : 16
     /* other options if needed here */
   });
 

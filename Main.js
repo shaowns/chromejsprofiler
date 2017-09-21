@@ -3,6 +3,7 @@ const chromeLauncher = require('chrome-launcher');
 const delay = require('delay');
 var cluster = require('cluster');
 var nthline = require('nthline');
+var winston = require('winston');
 
 // Mongoose models
 var DB = require('./DB');
@@ -38,11 +39,9 @@ function processUrlContents(content) {
     for (let s of content.scripts) {
         s.dumpToConsole();
     }
-
     for (let r of content.requests) {
         r.dumpToConsole();
     }
-
     console.log(finalHtml);
 }
 
@@ -66,11 +65,14 @@ async function init() {
  * Main function that launches an instance of chrome
  * and retrieves the information from it through the
  * devtools protocol.
- * 
+ *
+ * @param {any} logger
  * @param {any} startLine 
  * @param {any} endLine 
+ * 
+ * @returns {int} the exitcode, 0 for no error, 1 otherwise.
  */
-async function runScrapper(startLine, endLine) {
+async function runScrapper(logger, startLine, endLine) {
     var chrome = null;
     var client = null;
 
@@ -80,7 +82,7 @@ async function runScrapper(startLine, endLine) {
         var chrome = agents.chrome;
         var client = agents.client;
     } catch (error) {
-        console.log('Error initializing chrome and CDP client : ' +  String(error));
+        logger.log('warn', 'Error initializing chrome and CDP client : ' +  String(error));
         return 1;
     }
     
@@ -161,7 +163,7 @@ async function runScrapper(startLine, endLine) {
             var rank = parseInt(vals[0]);
             var url = vals[1];
 
-            console.log(rank + ' ' + url);
+            logger.log('info', 'Processing, rank: ' + rank + ', url: ' + url);
 
             // Clear out the script and the request container.
             scripts = [];
@@ -174,7 +176,7 @@ async function runScrapper(startLine, endLine) {
 
             // Timing start point and navigate to the url.
             hrstart = process.hrtime();
-            await Page.navigate({url: url});
+            await Page.navigate({url: 'http://' + url});
             await Page.loadEventFired();
 
             // Get the final html.
@@ -202,7 +204,7 @@ async function runScrapper(startLine, endLine) {
             });
         }
     } catch (error) {
-        console.error("Error loading pages and extracting " + String(error));
+        logger.log('error', "Error loading pages and extracting " + String(error));
     } finally {
         if (client) {
             await client.close();
@@ -218,8 +220,13 @@ async function runScrapper(startLine, endLine) {
 function main() {
     if(cluster.isMaster) {
         var numWorkers = require('os').cpus().length;
+        var logger = new (winston.Logger)({
+            transports: [
+              new (winston.transports.Console)()
+            ]
+          });
 
-        console.log('Master cluster setting up ' + numWorkers + ' workers...');
+        logger.log('info', 'Master cluster setting up ' + numWorkers + ' workers...');
 
         // Setup the file access parameters.
         const lineLimit = require('./property').urlLimit;
@@ -240,7 +247,7 @@ function main() {
 
             worker.on('message', function(message) {
                 if (message.type == 'fail') {
-                    console.log('Worker ' + worker.process.pid + ' failed, forking a new worker with the same task');
+                    logger.log('warn', 'Worker ' + worker.process.pid + ' failed, forking a new worker with the same task');
                     var newWorker = cluster.fork();
                     newWorker.send({
                         startLine: message.startLine,
@@ -251,20 +258,29 @@ function main() {
         }
 
         cluster.on('online', function(worker) {
-            console.log('Worker ' + worker.process.pid + ' is online');
+            logger.log('info', 'Worker ' + worker.process.pid + ' is online');
         });
 
         cluster.on('exit', function(worker, code, signal) {
-            console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
+            logger.log('info', 'Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
+            logger.log('info', Object.keys(cluster.workers).length);
+
             // Check if there are no more workers, then gracefully exit the master to close mongoose connections.
             if (Object.keys(cluster.workers).length == 0) {                
                 process.exit(0);
             }
         });
-    } else {
+    } else if (cluster.isWorker){
         process.on('message', async function(message) {
             if (message.type == 'scrape') {
-                var exitCode = await runScrapper(message.startLine, message.endLine);
+                var logger = new (winston.Logger)({
+                    transports: [
+                      new (winston.transports.Console)(),
+                      new (winston.transports.File)({ filename: cluster.worker.process.pid + '.log' })
+                    ]
+                  });
+
+                var exitCode = await runScrapper(logger, message.startLine, message.endLine);
                 // If there was an exit code then we would have to close this one and create a
                 // new worker with the same task as this one.
                 if (exitCode) {
