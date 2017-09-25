@@ -4,6 +4,8 @@ const delay = require('delay');
 var cluster = require('cluster');
 var nthline = require('nthline');
 var winston = require('winston');
+var winstonCluster = require('winston-cluster');
+var logLevel = 'info';
 
 // Mongoose models
 var DB = require('./DB');
@@ -100,7 +102,7 @@ async function runScrapper(logger, startLine, endLine) {
         var requests = null;
 
         // Variable for start time reference point.
-        var hrstart = null;
+        var hrstart = process.hrtime();;
 
         // Setup handlers for: 
         // request about to be sent.
@@ -116,40 +118,46 @@ async function runScrapper(logger, startLine, endLine) {
 
         // Scripts parsed.
         Debugger.scriptParsed(async (params) => {
-            var script = new Script();
-            script.scriptId = params.scriptId;
-            script.url = params.url;
-            script.startLine = params.startLine;
-            script.startColumn = params.startColumn;
-            script.endLine = params.endLine;
-            script.endColumn = params.endColumn;
-            script.hash = params.hash;
-            script.failedToParse = false;
-
-            // Fetch the source of the script from the debugger.
-            // Retrieve the script source as a promise.
-            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
-            script.source = source.scriptSource;
-            scripts.push(script);
+            try {
+                // Fetch the source of the script from the debugger.
+                // Retrieve the script source as a promise.
+                let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+                var script = new Script();
+                script.source = source.scriptSource;
+                script.scriptId = params.scriptId;
+                script.url = params.url;
+                script.startLine = params.startLine;
+                script.startColumn = params.startColumn;
+                script.endLine = params.endLine;
+                script.endColumn = params.endColumn;
+                script.hash = params.hash;
+                script.failedToParse = false;
+                scripts.push(script);
+            } catch (error) {
+                // Don't care, if the debugger is unable to give the source, the script is no longer available.    
+            }
         });
 
         // Scripts failed to parse.
         Debugger.scriptFailedToParse(async (params) => {
-            var script = new Script();
-            script.scriptId = params.scriptId;
-            script.url = params.url;
-            script.startLine = params.startLine;
-            script.startColumn = params.startColumn;
-            script.endLine = params.endLine;
-            script.endColumn = params.endColumn;
-            script.hash = params.hash;
-            script.failedToParse = true;
-
-            // Fetch the source of the script from the debugger.
-            // Retrieve the script source as a promise.
-            let source = await Debugger.getScriptSource({scriptId: params.scriptId});
-            script.source = source.scriptSource;
-            scripts.push(script);
+            try {
+                // Fetch the source of the script from the debugger.
+                // Retrieve the script source as a promise.
+                let source = await Debugger.getScriptSource({scriptId: params.scriptId});
+                var script = new Script();
+                script.source = source.scriptSource;
+                script.scriptId = params.scriptId;
+                script.url = params.url;
+                script.startLine = params.startLine;
+                script.startColumn = params.startColumn;
+                script.endLine = params.endLine;
+                script.endColumn = params.endColumn;
+                script.hash = params.hash;
+                script.failedToParse = true;
+                scripts.push(script);
+            } catch (error) {
+                // Don't care, if the debugger is unable to give the source, the script is no longer available.    
+            }
         });
 
         // Enable events, then start.
@@ -163,8 +171,6 @@ async function runScrapper(logger, startLine, endLine) {
             var rank = parseInt(vals[0]);
             var url = vals[1];
 
-            logger.log('info', 'Processing, rank: ' + rank + ', url: ' + url);
-
             // Clear out the script and the request container.
             scripts = [];
             requests = [];
@@ -174,22 +180,28 @@ async function runScrapper(logger, startLine, endLine) {
             content.url = url;
             content.rank = rank;
 
-            // Timing start point and navigate to the url.
             hrstart = process.hrtime();
-            await Page.navigate({url: 'http://' + url});
-            await Page.loadEventFired();
 
-            // Get the final html.
-            const finalPageContent = await Runtime.evaluate({
-                expression: 'document.documentElement.outerHTML'
-            });
-
-            /* 
-            * Wait for 5000 ms before returning so that we can finish latching
-            * onto any delayed request and consequent script content.
-            * See https://github.com/shaowns/chromejsscrapper/issues/1
-            */
-            await delay(5000);
+            // Timing start point and navigate to the url.
+            try {
+                logger.log('info', 'Processing rank: ' + rank + ', ' + url);
+                await Page.navigate({url: 'http://' + url});
+                await Page.loadEventFired();
+    
+                // Get the final html.
+                var finalPageContent = await Runtime.evaluate({
+                    expression: 'document.documentElement.outerHTML'
+                });
+    
+                /* 
+                * Wait for 5000 ms before returning so that we can finish latching
+                * onto any delayed request and consequent script content.
+                * See https://github.com/shaowns/chromejsscrapper/issues/1
+                */
+                await delay(5000);
+            } catch(error) {
+                logger.log('error', "Error processing web page: " + rank + ", " + url + ", " + String(error));
+            }            
 
             // Save the scripts, requests, and the final html into the content object.
             content.scripts = scripts;
@@ -197,9 +209,9 @@ async function runScrapper(logger, startLine, endLine) {
             content.finalHtml = finalPageContent.result.value;
 
             // Save the content in the DB.
-            content.save(function(error) {
+            await content.save(function(error) {
                 if (error) {
-                    throw error;
+                    logger.log('error', "Error saving contents, rank " + rank + ", url: " + url + ". " + String(error));
                 }
             });
         }
@@ -220,9 +232,14 @@ async function runScrapper(logger, startLine, endLine) {
 function main() {
     if(cluster.isMaster) {
         var numWorkers = require('os').cpus().length;
+        if (numWorkers > 8) {
+            numWorkers = 8;
+        }
         var logger = new (winston.Logger)({
             transports: [
-              new (winston.transports.Console)()
+              new (winston.transports.Console)({
+                level: logLevel,
+              })
             ]
           });
 
@@ -230,13 +247,14 @@ function main() {
 
         // Setup the file access parameters.
         const lineLimit = require('./property').urlLimit;
+        const lineStart = require('./property').urlStart;
         const sliceSize = Math.floor(lineLimit/numWorkers);
 
         // Spin up the workers.
         for(var i = 0; i < numWorkers; i++) {
             var worker = cluster.fork();
             
-            var sliceStart = i * sliceSize;
+            var sliceStart = lineStart + i * sliceSize;
             var sliceEnd = (i == numWorkers - 1) ? lineLimit - 1 : sliceStart + sliceSize - 1;
 
             worker.send({
@@ -247,7 +265,7 @@ function main() {
 
             worker.on('message', function(message) {
                 if (message.type == 'fail') {
-                    logger.log('warn', 'Worker ' + worker.process.pid + ' failed, forking a new worker with the same task');
+                    logger.log('warn', 'Worker ' + worker.id + ' failed, forking a new worker with the same task');
                     var newWorker = cluster.fork();
                     newWorker.send({
                         startLine: message.startLine,
@@ -257,13 +275,16 @@ function main() {
             });
         }
 
+        // Bind event listeners to child threads using the local logger instance
+        winstonCluster.bindListeners(logger);
+
         cluster.on('online', function(worker) {
-            logger.log('info', 'Worker ' + worker.process.pid + ' is online');
+            logger.log('info', 'Worker ' + worker.id + ' is online');
         });
 
         cluster.on('exit', function(worker, code, signal) {
-            logger.log('info', 'Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
-            logger.log('info', Object.keys(cluster.workers).length);
+            logger.log('info', 'Worker ' + worker.id + ' died with code: ' + code + ', and signal: ' + signal);
+            logger.log('info', 'Workers alive: ' + Object.keys(cluster.workers).length);
 
             // Check if there are no more workers, then gracefully exit the master to close mongoose connections.
             if (Object.keys(cluster.workers).length == 0) {                
@@ -275,8 +296,9 @@ function main() {
             if (message.type == 'scrape') {
                 var logger = new (winston.Logger)({
                     transports: [
-                      new (winston.transports.Console)(),
-                      new (winston.transports.File)({ filename: cluster.worker.process.pid + '.log' })
+                      new (winston.transports.Cluster)({
+                        level: logLevel,
+                      })
                     ]
                   });
 
@@ -290,6 +312,7 @@ function main() {
                         endLine: message.endLine
                     });
                 }
+                logger.log('info', 'Worker finished.');
                 process.exit(exitCode);
             }            
         });
