@@ -96,10 +96,10 @@ async function runScrapper(logger, startLine, endLine) {
         var filePath = require('./property').urlDataset;
 
         // Container for storing the script objects.
-        var scripts = null;
+        var scripts = [];
         
         // Container for request objects.
-        var requests = null;
+        var requests = [];
 
         // Variable for start time reference point.
         var hrstart = process.hrtime();;
