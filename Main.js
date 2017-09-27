@@ -184,9 +184,9 @@ async function runScrapper(logger, startLine, endLine) {
 
             // Timing start point and navigate to the url.
             try {
-                logger.log('info', 'Processing rank: ' + rank + ', ' + url);
                 await Page.navigate({url: 'http://' + url});
                 await Page.loadEventFired();
+                logger.log('info', 'Processing rank: ' + rank + ', ' + url);
     
                 // Get the final html.
                 var finalPageContent = await Runtime.evaluate({
@@ -225,7 +225,6 @@ async function runScrapper(logger, startLine, endLine) {
             await chrome.kill();
         }
     }
-
     return 0;
 }
 
@@ -268,6 +267,7 @@ function main() {
                     logger.log('warn', 'Worker ' + worker.id + ' failed, forking a new worker with the same task');
                     var newWorker = cluster.fork();
                     newWorker.send({
+                        type: 'scrape',
                         startLine: message.startLine,
                         endLine: message.endLine
                     });
