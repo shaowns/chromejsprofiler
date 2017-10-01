@@ -209,11 +209,11 @@ async function runScrapper(logger, startLine, endLine) {
             content.finalHtml = finalPageContent.result.value;
 
             // Save the content in the DB, if already not exists.
-            ScrappedContent.findOneAndUpdate(
+            ScrappedContent.update(
                 {rank: content.rank},
-                content,
-                {upsert: true, new: true, runvalidators: true},
-                function (err, doc) {
+                {$setOnInsert: content},
+                {upsert: true},
+                function (error, numAffected) {
                     if (error) {
                         logger.log('error', "Error saving contents, rank " + rank + ", url: " + url + ". " + String(error));
                     }
