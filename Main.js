@@ -228,96 +228,24 @@ async function runScrapper(logger, startLine, endLine) {
     return 0;
 }
 
-function main() {
-    if(cluster.isMaster) {
-        var numWorkers = require('os').cpus().length;
-        if (numWorkers > 8) {
-            numWorkers = 8;
-        }
-        var logger = new (winston.Logger)({
-            transports: [
-              new (winston.transports.Console)({
-                level: logLevel,
-              })
-            ]
-          });
-
-        logger.log('info', 'Master cluster setting up ' + numWorkers + ' workers...');
-
-        // Setup the file access parameters.
-        const lineLimit = require('./property').urlLimit;
-        const lineStart = require('./property').urlStart;
-        const sliceSize = Math.floor(lineLimit/numWorkers);
-
-        // Spin up the workers.
-        for(var i = 0; i < numWorkers; i++) {
-            var worker = cluster.fork();
-            
-            var sliceStart = lineStart + i * sliceSize;
-            var sliceEnd = (i == numWorkers - 1) ? lineLimit - 1 : sliceStart + sliceSize - 1;
-
-            worker.send({
-                type: 'scrape',
-                startLine: sliceStart,
-                endLine: sliceEnd
-            });
-
-            worker.on('message', function(message) {
-                if (message.type == 'fail') {
-                    logger.log('warn', 'Worker ' + worker.id + ' failed, forking a new worker with the same task');
-                    var newWorker = cluster.fork();
-                    newWorker.send({
-                        type: 'scrape',
-                        startLine: message.startLine,
-                        endLine: message.endLine
-                    });
-                }
-            });
-        }
-
-        // Bind event listeners to child threads using the local logger instance
-        winstonCluster.bindListeners(logger);
-
-        cluster.on('online', function(worker) {
-            logger.log('info', 'Worker ' + worker.id + ' is online');
-        });
-
-        cluster.on('exit', function(worker, code, signal) {
-            logger.log('info', 'Worker ' + worker.id + ' died with code: ' + code + ', and signal: ' + signal);
-            logger.log('info', 'Workers alive: ' + Object.keys(cluster.workers).length);
-
-            // Check if there are no more workers, then gracefully exit the master to close mongoose connections.
-            if (Object.keys(cluster.workers).length == 0) {                
-                process.exit(0);
-            }
-        });
-    } else if (cluster.isWorker){
-        process.on('message', async function(message) {
-            if (message.type == 'scrape') {
-                var logger = new (winston.Logger)({
-                    transports: [
-                      new (winston.transports.Cluster)({
-                        level: logLevel,
-                      })
-                    ]
-                  });
-
-                var exitCode = await runScrapper(logger, message.startLine, message.endLine);
-                // If there was an exit code then we would have to close this one and create a
-                // new worker with the same task as this one.
-                if (exitCode) {
-                    process.send({
-                        type: 'fail',
-                        startLine: message.startLine,
-                        endLine: message.endLine
-                    });
-                }
-                logger.log('info', 'Worker finished.');
-                process.exit(exitCode);
-            }            
-        });
-    }
+async function main() {
+    const argv = require('yargs').argv;
+    
+    var logfileName = argv.start + '-' + argv.end + '.log';
+    
+    var logger = new (winston.Logger)({
+        transports: [
+          new (winston.transports.File)({
+            filename: './logs/' + logfileName,
+            level: logLevel,
+          })
+        ]
+      });
+      
+      // Call the scrapper function.
+      var retcode = await runScrapper(logger, argv.start, argv.end);
+      process.exit(retcode);
 }
 
 // Call the main function.
-main();
+await main();
