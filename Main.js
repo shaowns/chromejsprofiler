@@ -208,12 +208,17 @@ async function runScrapper(logger, startLine, endLine) {
             content.requests = requests;
             content.finalHtml = finalPageContent.result.value;
 
-            // Save the content in the DB.
-            await content.save(function(error) {
-                if (error) {
-                    logger.log('error', "Error saving contents, rank " + rank + ", url: " + url + ". " + String(error));
+            // Save the content in the DB, if already not exists.
+            ScrappedContent.findOneAndUpdate(
+                {rank: content.rank},
+                content,
+                {upsert: true, new: true, runvalidators: true},
+                function (err, doc) {
+                    if (error) {
+                        logger.log('error', "Error saving contents, rank " + rank + ", url: " + url + ". " + String(error));
+                    }
                 }
-            });
+            );
         }
     } catch (error) {
         logger.log('error', "Error loading pages and extracting " + String(error));
@@ -248,4 +253,4 @@ async function main() {
 }
 
 // Call the main function.
-await main();
+main();
